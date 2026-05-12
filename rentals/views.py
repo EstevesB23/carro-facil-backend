@@ -1,17 +1,21 @@
-from rest_framework import status
-from rest_framework.decorators import api_view
-from rest_framework.response import Response
-from django.utils import timezone
 from datetime import timedelta
 from decimal import Decimal
 
-from .models import Car, Rental
-from .serializers import CarSerializer, RentalSerializer, RentalCreateSerializer
-from . import database
+from django.utils import timezone
+from rest_framework import status
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
 
-from .models import CustomerRewards, RewardTransaction
-from .serializers import CustomerRewardsSerializer, RewardTransactionSerializer, RedeemPointsSerializer
-from . import rewards_service
+from . import database, rewards_service
+from .models import Car, Rental, CustomerRewards, RewardTransaction
+from .serializers import (
+    CarSerializer,
+    RentalSerializer,
+    RentalCreateSerializer,
+    CustomerRewardsSerializer,
+    RewardTransactionSerializer,
+    RedeemPointsSerializer,
+)
 
 
 @api_view(['GET'])
