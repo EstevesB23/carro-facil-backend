@@ -42,3 +42,78 @@ class Rental(models.Model):
     def __str__(self):
         return f"Rental {self.id} - {self.customer_name}"
 
+class CustomerRewards(models.Model):
+    """
+    Armazena o saldo de pontos de recompensa de cada cliente.
+    Vinculado ao email, que é o identificador do cliente no sistema.
+    """
+    customer_email = models.EmailField(unique=True, validators=[EmailValidator()])
+    customer_name = models.CharField(max_length=200)
+    total_points = models.IntegerField(default=0)
+    lifetime_points_earned = models.IntegerField(default=0)
+    lifetime_points_redeemed = models.IntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'customer_rewards'
+
+    def __str__(self):
+        return f"{self.customer_email} - {self.total_points} pontos"
+
+    @property
+    def tier(self):
+        """Calcula o nível do cliente baseado nos pontos acumulados"""
+        if self.total_points >= 1000:
+            return "Ouro"
+        elif self.total_points >= 500:
+            return "Prata"
+        return "Bronze"
+
+    @property
+    def tier_multiplier(self):
+        multipliers = {"Bronze": 1.0, "Prata": 1.25, "Ouro": 1.5}
+        return multipliers[self.tier]
+
+    @property
+    def points_to_next_tier(self):
+        if self.total_points >= 1000:
+            return 0
+        elif self.total_points >= 500:
+            return 1000 - self.total_points
+        return 500 - self.total_points
+
+
+class RewardTransaction(models.Model):
+    """
+    Histórico de cada transação de pontos (ganho ou resgate).
+    Permite auditoria completa dos pontos.
+    """
+    TRANSACTION_TYPES = [
+        ('earned', 'Earned'),
+        ('redeemed', 'Redeemed'),
+    ]
+
+    customer_rewards = models.ForeignKey(
+        CustomerRewards,
+        on_delete=models.CASCADE,
+        related_name='transactions'
+    )
+    transaction_type = models.CharField(max_length=10, choices=TRANSACTION_TYPES)
+    points = models.IntegerField()
+    reason = models.CharField(max_length=500)
+    rental = models.ForeignKey(
+        Rental,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='reward_transactions'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'reward_transactions'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.customer_rewards.customer_email} - {self.points} pts"

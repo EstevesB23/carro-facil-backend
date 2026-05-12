@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from .models import Car, Rental
+from .models import CustomerRewards, RewardTransaction
 
 
 class CarSerializer(serializers.ModelSerializer):
@@ -27,3 +28,35 @@ class RentalCreateSerializer(serializers.Serializer):
     customer_email = serializers.EmailField()
     days = serializers.IntegerField(min_value=1)
 
+class RewardTransactionSerializer(serializers.ModelSerializer):
+    """Serializa uma transação de pontos para o histórico"""
+    type = serializers.CharField(source='transaction_type')
+    timestamp = serializers.DateTimeField(source='created_at')
+    rental_id = serializers.SerializerMethodField()
+
+    class Meta:
+        model = RewardTransaction
+        fields = ['id', 'type', 'points', 'reason', 'rental_id', 'timestamp']
+
+    def get_rental_id(self, obj):
+        return obj.rental.id if obj.rental else None
+
+
+class CustomerRewardsSerializer(serializers.ModelSerializer):
+    """Serializa o saldo e nível do cliente"""
+    tier = serializers.ReadOnlyField()
+    points_to_next_tier = serializers.ReadOnlyField()
+
+    class Meta:
+        model = CustomerRewards
+        fields = [
+            'customer_email', 'total_points', 'tier',
+            'points_to_next_tier', 'lifetime_points_earned', 'lifetime_points_redeemed'
+        ]
+
+
+class RedeemPointsSerializer(serializers.Serializer):
+    """Valida os dados de entrada para resgate de pontos"""
+    rental_id = serializers.IntegerField()
+    customer_email = serializers.EmailField()
+    points_to_redeem = serializers.IntegerField(min_value=100)  

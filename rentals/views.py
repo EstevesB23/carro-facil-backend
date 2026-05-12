@@ -9,6 +9,10 @@ from .models import Car, Rental
 from .serializers import CarSerializer, RentalSerializer, RentalCreateSerializer
 from . import database
 
+from .models import CustomerRewards, RewardTransaction
+from .serializers import CustomerRewardsSerializer, RewardTransactionSerializer, RedeemPointsSerializer
+from . import rewards_service
+
 
 @api_view(['GET'])
 def index(request):
@@ -56,7 +60,7 @@ def create_rental(request):
         return Response({"error": "Car is not available"}, status=status.HTTP_400_BAD_REQUEST)
     
     # Calcular custo
-    total_cost = daily_rate * days
+    total_cost = car.daily_rate * days
     
     # Aplicar desconto 
     if days > 7:
@@ -113,6 +117,8 @@ def return_rental(request, rental_id):
     car = rental.car
     car.available = True
     database.update_car(car)
+
+    rewards_service.award_points_for_rental(rental)
     
     serializer = RentalSerializer(rental)
     return Response({
@@ -141,3 +147,67 @@ def get_stats(request):
     stats = database.get_rental_stats()
     return Response(stats)
 
+@api_view(['GET'])
+def get_customer_rewards(request, customer_email):
+    """
+    Retorna o saldo de pontos e nível do cliente.
+    GET /api/rewards/customer/{customer_email}/
+    """
+    try:
+        rewards = CustomerRewards.objects.get(customer_email=customer_email)
+    except CustomerRewards.DoesNotExist:
+        return Response(
+            {"error": "Cliente não encontrado ou sem pontos ainda."},
+            status=status.HTTP_404_NOT_FOUND
+        )
+    serializer = CustomerRewardsSerializer(rewards)
+    return Response(serializer.data)
+
+
+@api_view(['GET'])
+def get_rewards_history(request, customer_email):
+    """
+    Retorna o histórico de transações de pontos do cliente.
+    GET /api/rewards/customer/{customer_email}/history/
+    """
+    try:
+        rewards = CustomerRewards.objects.get(customer_email=customer_email)
+    except CustomerRewards.DoesNotExist:
+        return Response({"error": "Cliente não encontrado."}, status=status.HTTP_404_NOT_FOUND)
+
+    transactions = rewards.transactions.all()
+    serializer = RewardTransactionSerializer(transactions, many=True)
+    return Response({
+        "customer_email": customer_email,
+        "transactions": serializer.data
+    })
+
+
+@api_view(['POST'])
+def apply_rewards(request):
+    """
+    Resgata pontos do cliente para desconto em uma locação.
+    POST /api/rewards/apply/
+    """
+    serializer = RedeemPointsSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    data = serializer.validated_data
+    rental = database.get_rental_by_id(data['rental_id'])
+    if rental is None:
+        return Response({"error": "Locação não encontrada."}, status=status.HTTP_404_NOT_FOUND)
+
+    try:
+        transaction = rewards_service.redeem_points(
+            customer_email=data['customer_email'],
+            points_to_redeem=data['points_to_redeem'],
+            rental=rental
+        )
+        return Response({
+            "message": f"{data['points_to_redeem']} pontos resgatados com sucesso.",
+            "discount_value": (data['points_to_redeem'] / 100) * 50,
+            "transaction_id": transaction.id
+        })
+    except ValueError as e:
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
