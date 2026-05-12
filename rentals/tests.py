@@ -213,3 +213,54 @@ class RewardsAPITestCase(TestCase):
             transaction_type='earned'
         )
         self.assertEqual(transactions.count(), 1)
+
+    def test_fluxo_completo_locacao_devolucao_pontos(self):
+        """End-to-end: create rental via API -> return via API -> verify points awarded"""
+        # Criar um carro disponível
+        car = Car.objects.create(
+            brand="Mercedes", model="C200", year=2023,
+            daily_rate=Decimal("600.00"), available=True
+        )
+
+        # Criar locação via API
+        create_data = {
+            "car_id": car.id,
+            "customer_name": "Maria Silva",
+            "customer_email": "maria@example.com",
+            "days": 8
+        }
+        create_response = self.client.post('/api/rentals/create', create_data, format='json')
+        self.assertEqual(create_response.status_code, 201)
+
+        rental_id = create_response.data['id']
+
+        # Verificar que ainda não tem pontos
+        rewards_before = CustomerRewards.objects.filter(customer_email="maria@example.com")
+        self.assertFalse(rewards_before.exists())
+
+        # Devolver via API
+        return_response = self.client.post(f'/api/rentals/{rental_id}/return/')
+        self.assertEqual(return_response.status_code, 200)
+
+        # Verificar que os pontos foram concedidos automaticamente
+        rewards = CustomerRewards.objects.get(customer_email="maria@example.com")
+        self.assertGreater(rewards.total_points, 0)
+        self.assertEqual(rewards.lifetime_points_earned, rewards.total_points)
+
+        # Verificar que existe uma transação do tipo 'earned'
+        transaction = RewardTransaction.objects.get(
+            customer_rewards=rewards,
+            transaction_type='earned'
+        )
+        self.assertIsNotNone(transaction)
+        self.assertGreater(transaction.points, 0)
+
+        # Verificar que os pontos batem com o cálculo esperado
+        # base: 10*8=80, premium: 10*8=80, duração 7+: +50, pontual: +25 = 235
+        self.assertEqual(rewards.total_points, 235)
+
+        # Verificar que o histórico aparece na API
+        history_response = self.client.get('/api/rewards/customer/maria@example.com/history/')
+        self.assertEqual(history_response.status_code, 200)
+        self.assertEqual(len(history_response.data['transactions']), 1)
+        self.assertEqual(history_response.data['transactions'][0]['type'], 'earned')

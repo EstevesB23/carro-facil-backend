@@ -68,9 +68,9 @@ def create_rental(request):
     
     # Aplicar desconto 
     if days > 7:
-        total_cost = total_cost - (total_cost * 0.1)
+        total_cost = total_cost - (total_cost * Decimal('0.1'))
     elif days > 3:
-        total_cost = total_cost - (total_cost * 0.05)
+        total_cost = total_cost - (total_cost * Decimal('0.05'))
     
     # Criar locação
     start_date = timezone.now()

@@ -23,17 +23,21 @@ A integração foi feita adicionando uma única chamada `rewards_service.award_p
 
 O multiplicador de nível é aplicado automaticamente no momento da concessão dos pontos, baseado no saldo atual do cliente.
 
-**Bug corrigido**: a view `create_rental` usava a variável `daily_rate` que não existia no escopo. Corrigido para `car.daily_rate`.
+**Bug corrigido 1**: a view `create_rental` usava a variável `daily_rate` que não existia no escopo. Corrigido para `car.daily_rate`.
+
+**Bug corrigido 2**: o cálculo de desconto em `create_rental` multiplicava `Decimal` por `float` (`0.1`, `0.05`), causando `TypeError` em tempo de execução. Corrigido para `Decimal('0.1')` e `Decimal('0.05')`. Este bug foi descoberto pelo teste end-to-end.
 
 **Qualidade de código**: os imports foram reorganizados seguindo o padrão PEP8 — stdlib → terceiros → locais — e consolidados em blocos únicos por arquivo, eliminando imports duplicados que existiam na versão inicial.
 
 ## Estratégia de Testes
 
-Foram implementados 18 testes organizados em 3 classes:
+Foram implementados 19 testes organizados em 3 classes:
 
 - **CarAPITestCase**: testa os endpoints existentes de carros (listar, buscar por id, 404).
 - **RewardsCalculationTestCase**: testa as regras de cálculo de pontos isoladamente, cobrindo todos os cenários (carro econômico, standard, premium, devolução atrasada, bônus de 7 e 14 dias).
-- **RewardsAPITestCase**: testa os endpoints de recompensas (saldo, histórico, resgate com sucesso, resgate com pontos insuficientes, níveis Bronze/Prata/Ouro com multiplicadores corretos, e concessão automática de pontos na devolução).
+- **RewardsAPITestCase**: testa os endpoints de recompensas (saldo, histórico, resgate com sucesso, resgate com pontos insuficientes, níveis Bronze/Prata/Ouro com multiplicadores corretos, concessão automática de pontos na devolução, e teste end-to-end completo).
+
+O teste end-to-end (`test_fluxo_completo_locacao_devolucao_pontos`) simula o fluxo real: criação de locação via API → devolução via API → verificação dos pontos concedidos e histórico disponível. Este teste foi responsável por identificar o bug do `Decimal*float` descrito acima.
 
 Cada teste inclui comentários explicando o cálculo esperado, facilitando a manutenção futura.
 
@@ -76,7 +80,6 @@ python manage.py runserver
 
 - Paginação no histórico de transações para clientes com muitas locações.
 - Exportação do histórico em CSV.
-- Testes de integração end-to-end simulando o fluxo completo: criar locação → devolver via API → verificar pontos concedidos.
 - Cache do saldo de pontos para evitar queries desnecessárias em consultas frequentes.
 - Validação para impedir resgate de pontos em locações já encerradas.
 - Proteção contra dupla concessão de pontos na mesma locação.
