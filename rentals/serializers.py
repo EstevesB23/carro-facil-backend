@@ -1,6 +1,6 @@
 from rest_framework import serializers
-from .models import Car, Rental
-from .models import CustomerRewards, RewardTransaction
+
+from .models import Car, Rental, CustomerRewards, RewardTransaction
 
 
 class CarSerializer(serializers.ModelSerializer):
@@ -27,6 +27,7 @@ class RentalCreateSerializer(serializers.Serializer):
     customer_name = serializers.CharField(max_length=200)
     customer_email = serializers.EmailField()
     days = serializers.IntegerField(min_value=1)
+
 
 class RewardTransactionSerializer(serializers.ModelSerializer):
     """Serializa uma transação de pontos para o histórico"""
@@ -59,4 +60,4 @@ class RedeemPointsSerializer(serializers.Serializer):
     """Valida os dados de entrada para resgate de pontos"""
     rental_id = serializers.IntegerField()
     customer_email = serializers.EmailField()
-    points_to_redeem = serializers.IntegerField(min_value=100)  
+    points_to_redeem = serializers.IntegerField(min_value=100)
