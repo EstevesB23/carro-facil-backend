@@ -25,13 +25,17 @@ O multiplicador de nível é aplicado automaticamente no momento da concessão d
 
 **Bug corrigido**: a view `create_rental` usava a variável `daily_rate` que não existia no escopo. Corrigido para `car.daily_rate`.
 
+**Qualidade de código**: os imports foram reorganizados seguindo o padrão PEP8 — stdlib → terceiros → locais — e consolidados em blocos únicos por arquivo, eliminando imports duplicados que existiam na versão inicial.
+
 ## Estratégia de Testes
 
-Foram implementados 11 testes organizados em 3 classes:
+Foram implementados 18 testes organizados em 3 classes:
 
 - **CarAPITestCase**: testa os endpoints existentes de carros (listar, buscar por id, 404).
 - **RewardsCalculationTestCase**: testa as regras de cálculo de pontos isoladamente, cobrindo todos os cenários (carro econômico, standard, premium, devolução atrasada, bônus de 7 e 14 dias).
-- **RewardsAPITestCase**: testa os endpoints de recompensas (saldo, histórico, resgate, níveis Bronze/Prata/Ouro, pontos insuficientes).
+- **RewardsAPITestCase**: testa os endpoints de recompensas (saldo, histórico, resgate com sucesso, resgate com pontos insuficientes, níveis Bronze/Prata/Ouro com multiplicadores corretos, e concessão automática de pontos na devolução).
+
+Cada teste inclui comentários explicando o cálculo esperado, facilitando a manutenção futura.
 
 ## Como Testar
 
@@ -48,13 +52,16 @@ Get-Content init_data.py | python manage.py shell
 # 4. Rodar os testes automatizados
 python manage.py test rentals
 
-# 5. Subir o servidor
+# 5. Rodar com detalhes de cada teste
+python manage.py test rentals --verbosity=2
+
+# 6. Subir o servidor
 python manage.py runserver
 
-# 6. Testar manualmente via browser ou curl:
-# GET http://localhost:8000/api/cars/
-# GET http://localhost:8000/api/rewards/customer/{email}/
-# GET http://localhost:8000/api/rewards/customer/{email}/history/
+# 7. Testar manualmente via browser ou curl:
+# GET  http://localhost:8000/api/cars/
+# GET  http://localhost:8000/api/rewards/customer/{email}/
+# GET  http://localhost:8000/api/rewards/customer/{email}/history/
 # POST http://localhost:8000/api/rewards/apply/
 ```
 
@@ -69,6 +76,7 @@ python manage.py runserver
 
 - Paginação no histórico de transações para clientes com muitas locações.
 - Exportação do histórico em CSV.
-- Testes de integração completos simulando o fluxo criar locação → devolver → verificar pontos.
+- Testes de integração end-to-end simulando o fluxo completo: criar locação → devolver via API → verificar pontos concedidos.
 - Cache do saldo de pontos para evitar queries desnecessárias em consultas frequentes.
 - Validação para impedir resgate de pontos em locações já encerradas.
+- Proteção contra dupla concessão de pontos na mesma locação.
