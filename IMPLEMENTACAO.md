@@ -29,6 +29,18 @@ O multiplicador de nível é aplicado automaticamente no momento da concessão d
 
 **Qualidade de código**: os imports foram reorganizados seguindo o padrão PEP8 — stdlib → terceiros → locais — e consolidados em blocos únicos por arquivo, eliminando imports duplicados que existiam na versão inicial.
 
+## Funcionalidades Opcionais Implementadas
+
+### Paginação no histórico
+O endpoint `GET /api/rewards/customer/{email}/history/` suporta paginação via query params:
+- `page` — número da página (padrão: 1)
+- `page_size` — itens por página (padrão: 10)
+
+A resposta inclui `total`, `page`, `page_size` e `total_pages` para facilitar a navegação no frontend.
+
+### Exportação CSV
+O endpoint `GET /api/rewards/customer/{email}/export/` exporta o histórico completo de pontos em CSV, incluindo resumo do cliente (saldo, nível, pontos acumulados) e todas as transações com data, tipo, pontos, motivo e id da locação.
+
 ## Estratégia de Testes
 
 Foram implementados 19 testes organizados em 3 classes:
@@ -66,6 +78,8 @@ python manage.py runserver
 # GET  http://localhost:8000/api/cars/
 # GET  http://localhost:8000/api/rewards/customer/{email}/
 # GET  http://localhost:8000/api/rewards/customer/{email}/history/
+# GET  http://localhost:8000/api/rewards/customer/{email}/history/?page=1&page_size=10
+# GET  http://localhost:8000/api/rewards/customer/{email}/export/
 # POST http://localhost:8000/api/rewards/apply/
 ```
 
@@ -78,8 +92,6 @@ python manage.py runserver
 
 ## O Que Eu Melhoraria Com Mais Tempo
 
-- Paginação no histórico de transações para clientes com muitas locações.
-- Exportação do histórico em CSV.
 - Cache do saldo de pontos para evitar queries desnecessárias em consultas frequentes.
 - Validação para impedir resgate de pontos em locações já encerradas.
 - Proteção contra dupla concessão de pontos na mesma locação.
