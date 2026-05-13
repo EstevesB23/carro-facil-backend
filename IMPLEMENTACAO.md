@@ -1,97 +1,113 @@
-# Implementação - Sistema de Recompensas
+# Sistema de Recompensas — Documentação de Implementação
 
-## Suas Decisões de Design
+## Decisões de Design
 
-### 1. Esquema do Banco de Dados
+### Banco de Dados
 
-Foram criados dois modelos separados:
+Optei por criar dois modelos separados em vez de um só.
 
-- **CustomerRewards**: armazena o saldo atual de pontos de cada cliente, vinculado ao email. Optei por usar o email como identificador pois é o campo já utilizado no sistema de locações, evitando a necessidade de criar um modelo de Cliente separado e manter retrocompatibilidade.
+O `CustomerRewards` guarda o saldo atual de cada cliente, usando o email como identificador — faz sentido porque o email já era o campo de referência nas locações existentes, então não precisei criar um modelo de Cliente do zero nem quebrar nada que já funcionava.
 
-- **RewardTransaction**: registra cada transação de pontos (ganho ou resgate) com motivo, timestamp e referência à locação. Isso permite auditoria completa do histórico e rastreabilidade de cada movimentação de pontos.
+O `RewardTransaction` registra cada movimentação de pontos individualmente, com motivo, timestamp e referência à locação. Isso dá rastreabilidade total — se um cliente questionar um saldo, dá pra mostrar exatamente quando cada ponto entrou ou saiu e por quê.
 
-### 2. Arquitetura
+### Arquitetura
 
-A lógica de negócio foi isolada em `rewards_service.py`, separada das views. Isso segue o princípio de separação de responsabilidades e facilita os testes unitários, pois a lógica de cálculo pode ser testada sem depender de requisições HTTP.
+Toda a lógica de pontos ficou em `rewards_service.py`, separada das views. A razão é simples: se a lógica ficasse dentro da view, eu só conseguiria testá-la fazendo requisições HTTP. Assim, consigo testar `calculate_points()` diretamente com qualquer combinação de dias e tarifas, sem precisar subir um servidor.
 
-- **Maior preocupação**: garantir que os pontos sejam concedidos de forma atômica junto com a devolução do carro, sem quebrar o fluxo existente.
-- **Cálculo de pontos**: centralizado na função `calculate_points()`, que aplica as regras de negócio em sequência (base → categoria → duração → pontualidade), retornando o total antes do multiplicador de nível.
+O cálculo segue uma sequência clara: pontos base → bônus de categoria → bônus de duração → bônus de pontualidade. O multiplicador de nível é aplicado por cima no momento da concessão, baseado no saldo atual do cliente.
 
-### 3. Abordagem de Integração
+### Integração com o fluxo existente
 
-A integração foi feita adicionando uma única chamada `rewards_service.award_points_for_rental(rental)` na view `return_rental`, após a atualização do banco. Isso garante retrocompatibilidade total — nenhum endpoint existente foi alterado em seu comportamento.
+A integração foi uma linha só: `rewards_service.award_points_for_rental(rental)` chamada dentro de `return_rental`, depois que o banco já foi atualizado. Nenhum endpoint existente foi alterado em comportamento — quem já usava a API não percebe nenhuma diferença.
 
-O multiplicador de nível é aplicado automaticamente no momento da concessão dos pontos, baseado no saldo atual do cliente.
+### Bugs encontrados e corrigidos
 
-**Bug corrigido 1**: a view `create_rental` usava a variável `daily_rate` que não existia no escopo. Corrigido para `car.daily_rate`.
+Dois bugs existiam no código original:
 
-**Bug corrigido 2**: o cálculo de desconto em `create_rental` multiplicava `Decimal` por `float` (`0.1`, `0.05`), causando `TypeError` em tempo de execução. Corrigido para `Decimal('0.1')` e `Decimal('0.05')`. Este bug foi descoberto pelo teste end-to-end.
+**Bug 1** — `create_rental` referenciava `daily_rate` diretamente, mas essa variável não existia no escopo da função. Corrigido para `car.daily_rate`.
 
-**Qualidade de código**: os imports foram reorganizados seguindo o padrão PEP8 — stdlib → terceiros → locais — e consolidados em blocos únicos por arquivo, eliminando imports duplicados que existiam na versão inicial.
+**Bug 2** — O cálculo de desconto multiplicava um `Decimal` por um `float` (`0.1`, `0.05`), o que o Python não permite e lança `TypeError` em tempo de execução. Corrigido para `Decimal('0.1')` e `Decimal('0.05')`. Esse bug foi encontrado pelo teste end-to-end — o que reforça o valor desse tipo de teste.
 
-## Funcionalidades Opcionais Implementadas
+---
+
+## Funcionalidades Opcionais
 
 ### Paginação no histórico
-O endpoint `GET /api/rewards/customer/{email}/history/` suporta paginação via query params:
-- `page` — número da página (padrão: 1)
-- `page_size` — itens por página (padrão: 10)
 
-A resposta inclui `total`, `page`, `page_size` e `total_pages` para facilitar a navegação no frontend.
+`GET /api/rewards/customer/{email}/history/?page=1&page_size=10`
+
+A resposta traz `total`, `page`, `page_size` e `total_pages` além das transações, então o frontend consegue montar a navegação sem precisar buscar tudo de uma vez.
 
 ### Exportação CSV
-O endpoint `GET /api/rewards/customer/{email}/export/` exporta o histórico completo de pontos em CSV, incluindo resumo do cliente (saldo, nível, pontos acumulados) e todas as transações com data, tipo, pontos, motivo e id da locação.
 
-## Estratégia de Testes
+`GET /api/rewards/customer/{email}/export/`
 
-Foram implementados 19 testes organizados em 3 classes:
+Gera um `.csv` com duas seções: um resumo do cliente no topo (saldo atual, nível, pontos acumulados e resgatados) e o histórico completo de transações abaixo, com data, tipo, pontos, motivo e id da locação.
 
-- **CarAPITestCase**: testa os endpoints existentes de carros (listar, buscar por id, 404).
-- **RewardsCalculationTestCase**: testa as regras de cálculo de pontos isoladamente, cobrindo todos os cenários (carro econômico, standard, premium, devolução atrasada, bônus de 7 e 14 dias).
-- **RewardsAPITestCase**: testa os endpoints de recompensas (saldo, histórico, resgate com sucesso, resgate com pontos insuficientes, níveis Bronze/Prata/Ouro com multiplicadores corretos, concessão automática de pontos na devolução, e teste end-to-end completo).
+---
 
-O teste end-to-end (`test_fluxo_completo_locacao_devolucao_pontos`) simula o fluxo real: criação de locação via API → devolução via API → verificação dos pontos concedidos e histórico disponível. Este teste foi responsável por identificar o bug do `Decimal*float` descrito acima.
+## Testes
 
-Cada teste inclui comentários explicando o cálculo esperado, facilitando a manutenção futura.
+Foram escritos 19 testes em 3 classes:
 
-## Como Testar
+**CarAPITestCase** — cobre os endpoints de carros que já existiam: listar, buscar por id e resposta 404 para id inexistente.
 
-```bash
-# 1. Ativar o ambiente virtual
-venv\Scripts\activate.bat
-
-# 2. Rodar as migrações
-python manage.py migrate
-
-# 3. Carregar dados de exemplo
-Get-Content init_data.py | python manage.py shell
-
-# 4. Rodar os testes automatizados
-python manage.py test rentals
-
-# 5. Rodar com detalhes de cada teste
-python manage.py test rentals --verbosity=2
-
-# 6. Subir o servidor
-python manage.py runserver
-
-# 7. Testar manualmente via browser ou curl:
-# GET  http://localhost:8000/api/cars/
-# GET  http://localhost:8000/api/rewards/customer/{email}/
-# GET  http://localhost:8000/api/rewards/customer/{email}/history/
-# GET  http://localhost:8000/api/rewards/customer/{email}/history/?page=1&page_size=10
-# GET  http://localhost:8000/api/rewards/customer/{email}/export/
-# POST http://localhost:8000/api/rewards/apply/
+**RewardsCalculationTestCase** — testa as regras de cálculo de forma isolada, sem depender de HTTP. Cobre carro econômico, standard e premium, devolução atrasada (sem bônus pontual), e bônus de duração para 7 e 14 dias. Cada teste tem um comentário com a conta esperada, por exemplo:
+```
+# base: 80, category: 10*8=80, duration 7+: +50, on-time: +25 = 235
 ```
 
-## Suposições Feitas
+**RewardsAPITestCase** — testa os endpoints de recompensas: saldo do cliente, histórico, resgate com sucesso, resgate com pontos insuficientes, os três níveis com multiplicadores, concessão automática na devolução, e um teste end-to-end completo.
 
-1. O email do cliente é suficiente como identificador único, sem necessidade de modelo Cliente separado.
-2. O multiplicador de nível é calculado com base no saldo total atual no momento da concessão dos pontos.
-3. Devoluções atrasadas não penalizam pontos existentes, apenas não recebem o bônus de pontualidade.
-4. O resgate de pontos deve ser em múltiplos de 100, com mínimo de 100 pontos.
+O teste end-to-end (`test_fluxo_completo_locacao_devolucao_pontos`) cria a locação via API, devolve via API e verifica se os pontos foram concedidos corretamente e aparecem no histórico. Foi esse teste que encontrou o Bug 2 descrito acima.
 
-## O Que Eu Melhoraria Com Mais Tempo
+---
 
-- Cache do saldo de pontos para evitar queries desnecessárias em consultas frequentes.
-- Validação para impedir resgate de pontos em locações já encerradas.
-- Proteção contra dupla concessão de pontos na mesma locação.
+## Como rodar
+
+```bash
+# Ativar o ambiente virtual
+venv\Scripts\activate.bat
+
+# Aplicar migrações
+python manage.py migrate
+
+# Carregar dados de exemplo
+Get-Content init_data.py | python manage.py shell
+
+# Rodar os testes
+python manage.py test rentals
+
+# Ver detalhes de cada teste
+python manage.py test rentals --verbosity=2
+
+# Subir o servidor
+python manage.py runserver
+```
+
+Endpoints disponíveis para teste manual:
+```
+GET  /api/cars/
+GET  /api/rewards/customer/{email}/
+GET  /api/rewards/customer/{email}/history/
+GET  /api/rewards/customer/{email}/history/?page=1&page_size=10
+GET  /api/rewards/customer/{email}/export/
+POST /api/rewards/apply/
+```
+
+---
+
+## Suposições
+
+- O email já era o identificador natural nas locações, então foi suficiente para o sistema de recompensas sem precisar de um modelo de Cliente separado.
+- O multiplicador de nível é calculado com base no saldo no momento da concessão — quem subir de nível durante uma locação já recebe o multiplicador novo na devolução.
+- Devolução atrasada não penaliza pontos existentes, apenas perde o bônus de pontualidade (+25).
+- Resgate mínimo de 100 pontos, sempre em múltiplos de 100. Cada 100 pontos = R$50 de desconto.
+
+---
+
+## O que eu melhoraria com mais tempo
+
+- **Cache do saldo de pontos** — para clientes com muitas consultas, evitar bater no banco a cada request.
+- **Validação de resgate em locações encerradas** — hoje é possível resgatar pontos referenciando uma locação já devolvida.
+- **Proteção contra dupla concessão** — se `award_points_for_rental` for chamado duas vezes para a mesma locação, os pontos são duplicados. Um campo `rewards_processed` no modelo `Rental` resolveria isso.
