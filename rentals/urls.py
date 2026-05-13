@@ -12,6 +12,6 @@ urlpatterns = [
     path('stats/', views.get_stats, name='get_stats'),
     path('rewards/customer/<str:customer_email>/', views.get_customer_rewards, name='get_customer_rewards'),
     path('rewards/customer/<str:customer_email>/history/', views.get_rewards_history, name='get_rewards_history'),
+    path('rewards/customer/<str:customer_email>/export/', views.export_rewards_csv, name='export_rewards_csv'),
     path('rewards/apply/', views.apply_rewards, name='apply_rewards'),
 ]
-
