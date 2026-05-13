@@ -47,14 +47,23 @@ A API estará disponível em `http://localhost:8000/api/`
 
 ### Endpoints Disponíveis
 
+#### Carros
 - `GET /api/` - Mensagem de boas-vindas
 - `GET /api/cars/` - Listar todos os carros disponíveis
 - `GET /api/cars/{id}/` - Obter detalhes de um carro específico
+
+#### Locações
 - `POST /api/rentals/create/` - Criar uma nova locação
 - `POST /api/rentals/{id}/return/` - Devolver um carro alugado
 - `GET /api/rentals/` - Listar todas as locações
 - `GET /api/rentals/customer/{email}/` - Obter locações por email do cliente
 - `GET /api/stats/` - Obter estatísticas de locações
+
+#### Sistema de Recompensas
+- `GET /api/rewards/customer/{email}/` - Consultar pontos e nível do cliente
+- `GET /api/rewards/customer/{email}/history/` - Histórico de transações (suporta paginação via `?page=1&page_size=10`)
+- `GET /api/rewards/customer/{email}/export/` - Exportar histórico completo em CSV
+- `POST /api/rewards/apply/` - Resgatar pontos para desconto em locação
 
 ### Painel Admin
 
@@ -65,6 +74,11 @@ Acesse o painel admin do Django em `http://localhost:8000/admin/`
 Da raiz do projeto:
 ```bash
 python manage.py test rentals
+```
+
+Com detalhes de cada teste:
+```bash
+python manage.py test rentals --verbosity=2
 ```
 
 Ou com pytest:
@@ -83,12 +97,13 @@ docker-compose exec web python manage.py test rentals
 car_rental/           # Configurações do projeto Django
 rentals/              # Aplicação principal
 ├── models.py         # Modelos Django ORM
-├── database.py       # Camada de acesso a dados (intencionalmente imperfeita)
+├── rewards_service.py # Lógica de negócio do sistema de recompensas
+├── database.py       # Camada de acesso a dados
 ├── views.py          # Views da API DRF
 ├── serializers.py    # Serializers DRF
 ├── urls.py           # Roteamento de URLs
 ├── admin.py          # Configuração do admin Django
-└── tests.py          # Casos de teste (incompletos)
+└── tests.py          # 19 testes automatizados
 manage.py             # Script de gerenciamento Django
 requirements.txt      # Dependências Python
 Dockerfile            # Definição da imagem Docker
@@ -103,4 +118,3 @@ docker-entrypoint.sh  # Script de inicialização do container
 ## Não vacile 😆
 
 Leia o arquivo [de instruções](INSTRUCOES_CANDIDATO.md) para entender o que é esperado do exercício.
-
